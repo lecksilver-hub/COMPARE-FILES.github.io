@@ -75,28 +75,45 @@ let keywords = {
     contre: []
 };
 
-function syncTextareas() {
+// Charger le JSON
+async function loadKeywords() {
+    try {
+        const res = await fetch("keywords.json", { cache: "no-store" });
+        if(!res.ok) throw new Error("keywords.json introuvable");
+        const data = await res.json();
+        keywords.pour = Array.isArray(data.pour) ? data.pour : [];
+        keywords.conditional = Array.isArray(data.conditional) ? data.conditional : keywords.conditional;
+        keywords.contre = Array.isArray(data.contre) ? data.contre : [];
+        syncTextareas();
+        console.info("keywords.json chargé");
+    } catch(e){
+        console.warn("Aucun keywords.json trouvé ou fichier invalide. Utilisation des mots-clés par défaut.");
+        syncTextareas();
+    }
+}
+
+function syncTextareas(){
     document.getElementById("pourKeywords").value = keywords.pour.join("\n");
     document.getElementById("conditionalKeywords").value = keywords.conditional.join("\n");
     document.getElementById("contreKeywords").value = keywords.contre.join("\n");
 }
 
-function normalizeText(text) {
+function normalizeText(text){
     return text.normalize("NFD")
-        .replace(/[\u0300-\u036f]/g,"")   // accents
-        .replace(/[’‘`]/g,"'")             // apostrophes
-        .replace(/[^\w\s'-]/g,"")          // caractères spéciaux
+        .replace(/[\u0300-\u036f]/g,"")
+        .replace(/[’‘`]/g,"'")
+        .replace(/[^\w\s'-]/g,"")
         .toLowerCase();
 }
 
-async function extractTextFromPDF(file) {
+async function extractTextFromPDF(file){
     const buffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
     let text = "";
     for(let i=1;i<=pdf.numPages;i++){
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        content.items.forEach(item => text += item.str + " ");
+        content.items.forEach(item=>text+=item.str+" ");
     }
     pdf.cleanup(); pdf.destroy();
     return normalizeText(text);
@@ -129,17 +146,18 @@ async function analyze(){
     const file = document.getElementById("pdfInput").files[0];
     if(!file) return alert("Sélectionne un PDF");
 
+    // récupérer les mots-clés depuis les textarea
     keywords.pour = document.getElementById("pourKeywords").value.split("\n").filter(Boolean);
     keywords.conditional = document.getElementById("conditionalKeywords").value.split("\n").filter(Boolean);
     keywords.contre = document.getElementById("contreKeywords").value.split("\n").filter(Boolean);
 
     const text = await extractTextFromPDF(file);
 
-    // séparation par email + réponse (tous les votants)
+    // Séparer tous les votants
     const regex = /([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})\s+([\s\S]*?)(?=[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|$)/gi;
     const opinions = [];
     let match;
-    while((match = regex.exec(text)) !== null){
+    while((match=regex.exec(text))!==null){
         const email = match[1].trim();
         const response = match[2].trim();
         if(email && response) opinions.push(response);
@@ -174,7 +192,8 @@ function resetKeywords(){
     location.reload();
 }
 
-syncTextareas();
+// 🚀 init
+loadKeywords();
 </script>
 
 </body>

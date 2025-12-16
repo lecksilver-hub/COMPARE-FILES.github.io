@@ -35,7 +35,7 @@
 
         textarea {
             width: 100%;
-            height: 100px;
+            height: 90px;
             padding: 10px;
         }
 
@@ -105,22 +105,10 @@
     <h2>👥 Personnes analysées : <span id="count">0</span></h2>
 
     <div class="results">
-        <div class="card">
-            <h3>✅ POUR</h3>
-            <p id="pourResult">0 %</p>
-        </div>
-        <div class="card">
-            <h3>🟦 POUR (sous conditions)</h3>
-            <p id="conditionalResult">0 %</p>
-        </div>
-        <div class="card">
-            <h3>❌ CONTRE</h3>
-            <p id="contreResult">0 %</p>
-        </div>
-        <div class="card">
-            <h3>⚖️ NEUTRE</h3>
-            <p id="neutralResult">0 %</p>
-        </div>
+        <div class="card"><h3>✅ POUR</h3><p id="pourResult">0 %</p></div>
+        <div class="card"><h3>🟦 POUR (conditions)</h3><p id="conditionalResult">0 %</p></div>
+        <div class="card"><h3>❌ CONTRE</h3><p id="contreResult">0 %</p></div>
+        <div class="card"><h3>⚖️ NEUTRE</h3><p id="neutralResult">0 %</p></div>
     </div>
 
     <canvas id="chart"></canvas>
@@ -134,7 +122,6 @@ const defaultKeywords = {
     pour: [
         "je suis pour",
         "totalement pour",
-        "100% pour",
         "favorable",
         "tres favorable",
         "bonne idee",
@@ -143,10 +130,8 @@ const defaultKeywords = {
     conditional: [
         "a condition",
         "sous condition",
-        "si",
-        "a condition que",
         "mais",
-        "pourquoi pas"
+        "si"
     ],
     contre: [
         "contre",
@@ -155,14 +140,11 @@ const defaultKeywords = {
         "honte",
         "esclavage",
         "inadmissible",
-        "regression",
-        "pas daccord"
+        "regression"
     ]
 };
 
 let keywords = JSON.parse(localStorage.getItem("keywords")) || defaultKeywords;
-
-// UI init
 pourKeywords.value = keywords.pour.join("\n");
 conditionalKeywords.value = keywords.conditional.join("\n");
 contreKeywords.value = keywords.contre.join("\n");
@@ -184,12 +166,18 @@ function normalizeText(text) {
 async function extractTextFromPDF(file) {
     const buffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+
     let text = "";
     for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         content.items.forEach(item => text += item.str + " ");
     }
+
+    // 🔥 libération explicite
+    pdf.cleanup();
+    pdf.destroy();
+
     return normalizeText(text);
 }
 
@@ -211,13 +199,13 @@ function scoreText(text, list) {
    CLASSIFICATION
 ========================= */
 function classify(text) {
-    const sPour = scoreText(text, keywords.pour);
-    const sCond = scoreText(text, keywords.conditional);
-    const sContre = scoreText(text, keywords.contre);
+    const p = scoreText(text, keywords.pour);
+    const c = scoreText(text, keywords.conditional);
+    const n = scoreText(text, keywords.contre);
 
-    if (sContre > 0 && sContre >= sPour) return "contre";
-    if (sPour > 0 && sCond > 0) return "conditional";
-    if (sPour > 0) return "pour";
+    if (n > 0 && n >= p) return "contre";
+    if (p > 0 && c > 0) return "conditional";
+    if (p > 0) return "pour";
     return "neutre";
 }
 
@@ -227,7 +215,8 @@ function classify(text) {
 let chartInstance = null;
 
 async function analyze() {
-    const file = pdfInput.files[0];
+    const input = document.getElementById("pdfInput");
+    const file = input.files[0];
     if (!file) return alert("Sélectionne un PDF");
 
     keywords = {
@@ -241,45 +230,36 @@ async function analyze() {
     const opinions = text.split(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/);
 
     let results = { pour: 0, conditional: 0, contre: 0, neutre: 0 };
-
     opinions.forEach(op => {
         if (op.trim().length > 10) {
-            const cat = classify(op);
-            results[cat]++;
+            results[classify(op)]++;
         }
     });
 
-    const total = Object.values(results).reduce((a, b) => a + b, 0);
+    const total = Object.values(results).reduce((a,b)=>a+b,0);
     count.innerText = total;
 
-    pourResult.innerText = ((results.pour / total) * 100).toFixed(1) + " %";
-    conditionalResult.innerText = ((results.conditional / total) * 100).toFixed(1) + " %";
-    contreResult.innerText = ((results.contre / total) * 100).toFixed(1) + " %";
-    neutralResult.innerText = ((results.neutre / total) * 100).toFixed(1) + " %";
+    pourResult.innerText = ((results.pour/total)*100).toFixed(1)+" %";
+    conditionalResult.innerText = ((results.conditional/total)*100).toFixed(1)+" %";
+    contreResult.innerText = ((results.contre/total)*100).toFixed(1)+" %";
+    neutralResult.innerText = ((results.neutre/total)*100).toFixed(1)+" %";
 
     renderChart(results);
+
+    // 🧹 NETTOYAGE FINAL
+    input.value = "";           // supprime le fichier sélectionné
 }
 
 /* =========================
    CHART
 ========================= */
-function renderChart(results) {
-    const ctx = document.getElementById("chart");
-
+function renderChart(r) {
     if (chartInstance) chartInstance.destroy();
-
-    chartInstance = new Chart(ctx, {
+    chartInstance = new Chart(chart, {
         type: "pie",
         data: {
             labels: ["POUR", "POUR (conditions)", "CONTRE", "NEUTRE"],
-            datasets: [{
-                data: [
-                    results.pour,
-                    results.conditional,
-                    results.contre,
-                    results.neutre
-                ]
-            }]
+            datasets: [{ data: [r.pour, r.conditional, r.contre, r.neutre] }]
         }
     });
 }
@@ -288,10 +268,4 @@ function renderChart(results) {
    RESET
 ========================= */
 function resetKeywords() {
-    localStorage.removeItem("keywords");
-    location.reload();
-}
-</script>
-
-</body>
-</html>
+    localStora

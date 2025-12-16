@@ -122,8 +122,35 @@
            Mots-clés par défaut
         =========================== */
         let defaultKeywords = {
-            pour: ["liberté", "choix", "régulation", "sécurité"],
-            contre: ["exploitation", "violence", "traite", "danger"]
+            pour: [
+    "je suis pour",
+    "pour",
+    "favorable",
+    "bonne idée",
+    "excellente",
+    "très bonne",
+    "oui",
+    "d'accord",
+    "totalement pour",
+    "100% pour",
+    "nécessaire",
+    "souhaitable",
+    "bonne chose",
+    "très favorable"
+  ],
+  contre: [
+    "contre",
+    "mauvaise idée",
+    "jamais",
+    "honte",
+    "esclavage",
+    "lamentable",
+    "inadmissible",
+    "régression",
+    "pas d'accord",
+    "folie",
+    "erreur"
+  ]
         };
 
         let keywords = { ...defaultKeywords };
@@ -158,8 +185,15 @@
 
         // === Normalisation Unicode pour gérer accents ===
         function normalizeText(text) {
-            return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-        }
+    return text
+        .normalize("NFD")                     // décompose les accents
+        .replace(/[\u0300-\u036f]/g, "")      // supprime les diacritiques
+        .replace(/[’‘`]/g, "'")               // unifie toutes les apostrophes
+        .replace(/[“”«»]/g, '"')              // unifie les guillemets
+        .replace(/[\u2013\u2014]/g, "-")      // tirets spéciaux
+        .replace(/[^\w\s'-]/g, "")            // supprime autres caractères non alphanumériques sauf espace, ' et -
+        .toLowerCase();                        // minuscule
+}
 
         // === Extraction PDF ===
         async function extractTextFromPDF(file) {
@@ -229,3 +263,4 @@
 
 </body>
 </html>
+

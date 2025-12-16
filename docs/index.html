@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>Analyseur de sondage PDF</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
@@ -77,6 +77,7 @@
     </style>
 </head>
 <body>
+
     <div class="container">
         <h1>Analyse de sondage – Maisons closes</h1>
 
@@ -87,16 +88,17 @@
 
         <div class="block">
             <h3>2️⃣ Mots-clés POUR</h3>
-            <textarea id="pourKeywords" oninput="saveKeywords()"></textarea>
+            <textarea id="pourKeywords"></textarea>
         </div>
 
         <div class="block">
             <h3>3️⃣ Mots-clés CONTRE</h3>
-            <textarea id="contreKeywords" oninput="saveKeywords()"></textarea>
+            <textarea id="contreKeywords"></textarea>
         </div>
 
         <div class="block">
             <button onclick="analyze()">📊 Lancer l’analyse</button>
+            <button onclick="resetKeywords()">🔄 Réinitialiser mots-clés</button>
         </div>
 
         <div class="results">
@@ -116,31 +118,47 @@
     </div>
 
     <script>
-        let keywords = { pour: [], contre: [] };
+        /* ===========================
+           Mots-clés par défaut
+        =========================== */
+        let defaultKeywords = {
+            pour: ["liberté", "choix", "régulation", "sécurité"],
+            contre: ["exploitation", "violence", "traite", "danger"]
+        };
 
-        // === Charger JSON ===
-        fetch("keywords.json")
-            .then(res => res.json())
-            .then(data => {
-                keywords = data;
-                document.getElementById("pourKeywords").value = keywords.pour.join("\n");
-                document.getElementById("contreKeywords").value = keywords.contre.join("\n");
+        let keywords = { ...defaultKeywords };
 
-                // Si localStorage contient des modifications
-                const saved = localStorage.getItem("keywords");
-                if (saved) {
-                    const local = JSON.parse(saved);
-                    if (local.pour) document.getElementById("pourKeywords").value = local.pour;
-                    if (local.contre) document.getElementById("contreKeywords").value = local.contre;
-                }
-            });
+        // Charger depuis localStorage si disponible
+        const saved = localStorage.getItem("keywords");
+        if (saved) {
+            const local = JSON.parse(saved);
+            if (local.pour) keywords.pour = local.pour.split("\n").filter(Boolean);
+            if (local.contre) keywords.contre = local.contre.split("\n").filter(Boolean);
+        }
 
-        // === Persistance ===
+        // Remplir les textarea
+        document.getElementById("pourKeywords").value = keywords.pour.join("\n");
+        document.getElementById("contreKeywords").value = keywords.contre.join("\n");
+
+        // === Sauvegarde dans localStorage ===
         function saveKeywords() {
-            localStorage.setItem("keywords", JSON.stringify({
-                pour: document.getElementById("pourKeywords").value,
-                contre: document.getElementById("contreKeywords").value
-            }));
+            const pour = document.getElementById("pourKeywords").value.split("\n").map(s => s.trim()).filter(Boolean);
+            const contre = document.getElementById("contreKeywords").value.split("\n").map(s => s.trim()).filter(Boolean);
+            localStorage.setItem("keywords", JSON.stringify({ pour: pour.join("\n"), contre: contre.join("\n") }));
+        }
+
+        // === Réinitialiser mots-clés ===
+        function resetKeywords() {
+            keywords = { ...defaultKeywords };
+            document.getElementById("pourKeywords").value = keywords.pour.join("\n");
+            document.getElementById("contreKeywords").value = keywords.contre.join("\n");
+            localStorage.removeItem("keywords");
+            alert("Mots-clés réinitialisés !");
+        }
+
+        // === Normalisation Unicode pour gérer accents ===
+        function normalizeText(text) {
+            return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
         }
 
         // === Extraction PDF ===
@@ -153,7 +171,7 @@
                 const content = await page.getTextContent();
                 content.items.forEach(item => text += item.str + " ");
             }
-            return text.toLowerCase();
+            return normalizeText(text);
         }
 
         // === Score pondéré ===
@@ -161,16 +179,16 @@
             let score = 0;
             keywords.forEach(k => {
                 if (!k) return;
-                const kw = k.trim();
-                if (!kw) return;
+                const kw = normalizeText(k);
                 const exact = new RegExp(`\\b${kw}\\b`, "gi");
                 const exactMatches = text.match(exact);
-                if (exactMatches) score += exactMatches.length * 2;
-                if (text.includes(kw)) score += 1;
+                if (exactMatches) score += exactMatches.length * 2; // mot exact = 2 pts
+                if (text.includes(kw)) score += 1;               // mot partiel = 1 pt
             });
             return score;
         }
 
+        // === Classification ===
         function classify(text, pour, contre) {
             const scorePour = scoreText(text, pour);
             const scoreContre = scoreText(text, contre);
@@ -181,18 +199,20 @@
 
         // === Analyse ===
         async function analyze() {
+            saveKeywords(); // sauvegarde avant analyse
             const file = document.getElementById("pdfInput").files[0];
             if (!file) return alert("Veuillez sélectionner un PDF");
 
-            const pour = document.getElementById("pourKeywords").value.toLowerCase().split("\n").filter(Boolean);
-            const contre = document.getElementById("contreKeywords").value.toLowerCase().split("\n").filter(Boolean);
+            const pour = document.getElementById("pourKeywords").value.split("\n").map(s => normalizeText(s)).filter(Boolean);
+            const contre = document.getElementById("contreKeywords").value.split("\n").map(s => normalizeText(s)).filter(Boolean);
 
             const text = await extractTextFromPDF(file);
-            const opinions = text.split(/[.!?]\s+/);
 
+            const opinions = text.split(/[.!?]\s+/);
             let results = { pour: 0, contre: 0, neutre: 0 };
+
             opinions.forEach(op => {
-                if (op.length > 40) {
+                if (op.trim().length > 40) {
                     const cat = classify(op, pour, contre);
                     results[cat]++;
                 }
@@ -206,5 +226,6 @@
             document.getElementById("neutralResult").innerText = ((results.neutre / total) * 100).toFixed(1) + " %";
         }
     </script>
+
 </body>
 </html>

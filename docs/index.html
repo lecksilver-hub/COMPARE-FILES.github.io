@@ -3,25 +3,27 @@
 <head>
     <meta charset="UTF-8" />
     <title>Analyseur de sondage PDF</title>
+
+    <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc =
             'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
         body {
             font-family: Arial, sans-serif;
             background: #f4f6f8;
-            margin: 0;
             padding: 40px;
         }
-
-        h1 {
-            text-align: center;
-        }
+        h1, h2 { text-align: center; }
 
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             margin: auto;
             background: white;
             padding: 30px;
@@ -29,19 +31,12 @@
             box-shadow: 0 4px 12px rgba(0,0,0,.1);
         }
 
-        .block {
-            margin-bottom: 30px;
-        }
+        .block { margin-bottom: 25px; }
 
         textarea {
             width: 100%;
-            height: 120px;
+            height: 100px;
             padding: 10px;
-            font-size: 14px;
-        }
-
-        input[type="file"] {
-            margin-top: 10px;
         }
 
         button {
@@ -51,216 +46,252 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            margin-right: 10px;
         }
 
-            button:hover {
-                background: #0056b3;
-            }
+        button:hover { background: #0056b3; }
 
         .results {
             display: flex;
             justify-content: space-around;
             margin-top: 30px;
-            text-align: center;
         }
 
         .card {
             background: #f1f3f5;
             padding: 20px;
             border-radius: 8px;
-            width: 28%;
+            width: 22%;
+            text-align: center;
         }
 
-            .card h2 {
-                margin: 0;
-            }
+        canvas {
+            max-width: 400px;
+            margin: 30px auto;
+            display: block;
+        }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>Analyse de sondage – Maisons closes</h1>
+<div class="container">
+    <h1>Analyse de sondage – Maisons closes</h1>
 
-        <div class="block">
-            <h3>1️⃣ Importer le fichier PDF</h3>
-            <input type="file" id="pdfInput" accept="application/pdf" />
+    <div class="block">
+        <h3>1️⃣ Importer le fichier PDF</h3>
+        <input type="file" id="pdfInput" accept="application/pdf" />
+    </div>
+
+    <div class="block">
+        <h3>2️⃣ Mots-clés POUR</h3>
+        <textarea id="pourKeywords"></textarea>
+    </div>
+
+    <div class="block">
+        <h3>3️⃣ Mots-clés POUR SOUS CONDITIONS</h3>
+        <textarea id="conditionalKeywords"></textarea>
+    </div>
+
+    <div class="block">
+        <h3>4️⃣ Mots-clés CONTRE</h3>
+        <textarea id="contreKeywords"></textarea>
+    </div>
+
+    <div class="block">
+        <button onclick="analyze()">📊 Lancer l’analyse</button>
+        <button onclick="resetKeywords()">🔄 Réinitialiser</button>
+    </div>
+
+    <h2>👥 Personnes analysées : <span id="count">0</span></h2>
+
+    <div class="results">
+        <div class="card">
+            <h3>✅ POUR</h3>
+            <p id="pourResult">0 %</p>
         </div>
-
-        <div class="block">
-            <h3>2️⃣ Mots-clés POUR</h3>
-            <textarea id="pourKeywords"></textarea>
+        <div class="card">
+            <h3>🟦 POUR (sous conditions)</h3>
+            <p id="conditionalResult">0 %</p>
         </div>
-
-        <div class="block">
-            <h3>3️⃣ Mots-clés CONTRE</h3>
-            <textarea id="contreKeywords"></textarea>
+        <div class="card">
+            <h3>❌ CONTRE</h3>
+            <p id="contreResult">0 %</p>
         </div>
-
-        <div class="block">
-            <button onclick="analyze()">📊 Lancer l’analyse</button>
-            <button onclick="resetKeywords()">🔄 Réinitialiser mots-clés</button>
-        </div>
-
-        <div class="results">
-            <div class="card">
-                <h2>✅ POUR</h2>
-                <p id="pourResult">0 %</p>
-            </div>
-            <div class="card">
-                <h2>❌ CONTRE</h2>
-                <p id="contreResult">0 %</p>
-            </div>
-            <div class="card">
-                <h2>⚖️ NEUTRE</h2>
-                <p id="neutralResult">0 %</p>
-            </div>
+        <div class="card">
+            <h3>⚖️ NEUTRE</h3>
+            <p id="neutralResult">0 %</p>
         </div>
     </div>
 
-    <script>
-        /* ===========================
-           Mots-clés par défaut
-        =========================== */
-        let defaultKeywords = {
-            pour: [
-    "je suis pour",
-    "pour",
-    "favorable",
-    "bonne idée",
-    "excellente",
-    "très bonne",
-    "oui",
-    "d'accord",
-    "totalement pour",
-    "100% pour",
-    "nécessaire",
-    "souhaitable",
-    "bonne chose",
-    "très favorable"
-  ],
-  contre: [
-    "contre",
-    "mauvaise idée",
-    "jamais",
-    "honte",
-    "esclavage",
-    "lamentable",
-    "inadmissible",
-    "régression",
-    "pas d'accord",
-    "folie",
-    "erreur"
-  ]
-        };
+    <canvas id="chart"></canvas>
+</div>
 
-        let keywords = { ...defaultKeywords };
+<script>
+/* =========================
+   MOTS-CLÉS
+========================= */
+const defaultKeywords = {
+    pour: [
+        "je suis pour",
+        "totalement pour",
+        "100% pour",
+        "favorable",
+        "tres favorable",
+        "bonne idee",
+        "excellente idee"
+    ],
+    conditional: [
+        "a condition",
+        "sous condition",
+        "si",
+        "a condition que",
+        "mais",
+        "pourquoi pas"
+    ],
+    contre: [
+        "contre",
+        "mauvaise idee",
+        "jamais",
+        "honte",
+        "esclavage",
+        "inadmissible",
+        "regression",
+        "pas daccord"
+    ]
+};
 
-        // Charger depuis localStorage si disponible
-        const saved = localStorage.getItem("keywords");
-        if (saved) {
-            const local = JSON.parse(saved);
-            if (local.pour) keywords.pour = local.pour.split("\n").filter(Boolean);
-            if (local.contre) keywords.contre = local.contre.split("\n").filter(Boolean);
-        }
+let keywords = JSON.parse(localStorage.getItem("keywords")) || defaultKeywords;
 
-        // Remplir les textarea
-        document.getElementById("pourKeywords").value = keywords.pour.join("\n");
-        document.getElementById("contreKeywords").value = keywords.contre.join("\n");
+// UI init
+pourKeywords.value = keywords.pour.join("\n");
+conditionalKeywords.value = keywords.conditional.join("\n");
+contreKeywords.value = keywords.contre.join("\n");
 
-        // === Sauvegarde dans localStorage ===
-        function saveKeywords() {
-            const pour = document.getElementById("pourKeywords").value.split("\n").map(s => s.trim()).filter(Boolean);
-            const contre = document.getElementById("contreKeywords").value.split("\n").map(s => s.trim()).filter(Boolean);
-            localStorage.setItem("keywords", JSON.stringify({ pour: pour.join("\n"), contre: contre.join("\n") }));
-        }
-
-        // === Réinitialiser mots-clés ===
-        function resetKeywords() {
-            keywords = { ...defaultKeywords };
-            document.getElementById("pourKeywords").value = keywords.pour.join("\n");
-            document.getElementById("contreKeywords").value = keywords.contre.join("\n");
-            localStorage.removeItem("keywords");
-            alert("Mots-clés réinitialisés !");
-        }
-
-        // === Normalisation Unicode pour gérer accents ===
-        function normalizeText(text) {
-    return text
-        .normalize("NFD")                     // décompose les accents
-        .replace(/[\u0300-\u036f]/g, "")      // supprime les diacritiques
-        .replace(/[’‘`]/g, "'")               // unifie toutes les apostrophes
-        .replace(/[“”«»]/g, '"')              // unifie les guillemets
-        .replace(/[\u2013\u2014]/g, "-")      // tirets spéciaux
-        .replace(/[^\w\s'-]/g, "")            // supprime autres caractères non alphanumériques sauf espace, ' et -
-        .toLowerCase();                        // minuscule
+/* =========================
+   UTILS
+========================= */
+function normalizeText(text) {
+    return text.normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[’‘`]/g, "'")
+        .replace(/[^\w\s'-]/g, "")
+        .toLowerCase();
 }
 
-        // === Extraction PDF ===
-        async function extractTextFromPDF(file) {
-            const buffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-            let text = "";
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const content = await page.getTextContent();
-                content.items.forEach(item => text += item.str + " ");
-            }
-            return normalizeText(text);
+/* =========================
+   PDF EXTRACTION
+========================= */
+async function extractTextFromPDF(file) {
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        content.items.forEach(item => text += item.str + " ");
+    }
+    return normalizeText(text);
+}
+
+/* =========================
+   SCORING
+========================= */
+function scoreText(text, list) {
+    let score = 0;
+    list.forEach(k => {
+        const kw = normalizeText(k);
+        const regex = new RegExp(`\\b${kw}\\b`, "g");
+        const matches = text.match(regex);
+        if (matches) score += matches.length;
+    });
+    return score;
+}
+
+/* =========================
+   CLASSIFICATION
+========================= */
+function classify(text) {
+    const sPour = scoreText(text, keywords.pour);
+    const sCond = scoreText(text, keywords.conditional);
+    const sContre = scoreText(text, keywords.contre);
+
+    if (sContre > 0 && sContre >= sPour) return "contre";
+    if (sPour > 0 && sCond > 0) return "conditional";
+    if (sPour > 0) return "pour";
+    return "neutre";
+}
+
+/* =========================
+   ANALYSE
+========================= */
+let chartInstance = null;
+
+async function analyze() {
+    const file = pdfInput.files[0];
+    if (!file) return alert("Sélectionne un PDF");
+
+    keywords = {
+        pour: pourKeywords.value.split("\n").map(normalizeText).filter(Boolean),
+        conditional: conditionalKeywords.value.split("\n").map(normalizeText).filter(Boolean),
+        contre: contreKeywords.value.split("\n").map(normalizeText).filter(Boolean)
+    };
+    localStorage.setItem("keywords", JSON.stringify(keywords));
+
+    const text = await extractTextFromPDF(file);
+    const opinions = text.split(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/);
+
+    let results = { pour: 0, conditional: 0, contre: 0, neutre: 0 };
+
+    opinions.forEach(op => {
+        if (op.trim().length > 10) {
+            const cat = classify(op);
+            results[cat]++;
         }
+    });
 
-        // === Score pondéré ===
-        function scoreText(text, keywords) {
-            let score = 0;
-            keywords.forEach(k => {
-                if (!k) return;
-                const kw = normalizeText(k);
-                const exact = new RegExp(`\\b${kw}\\b`, "gi");
-                const exactMatches = text.match(exact);
-                if (exactMatches) score += exactMatches.length * 2; // mot exact = 2 pts
-                if (text.includes(kw)) score += 1;               // mot partiel = 1 pt
-            });
-            return score;
+    const total = Object.values(results).reduce((a, b) => a + b, 0);
+    count.innerText = total;
+
+    pourResult.innerText = ((results.pour / total) * 100).toFixed(1) + " %";
+    conditionalResult.innerText = ((results.conditional / total) * 100).toFixed(1) + " %";
+    contreResult.innerText = ((results.contre / total) * 100).toFixed(1) + " %";
+    neutralResult.innerText = ((results.neutre / total) * 100).toFixed(1) + " %";
+
+    renderChart(results);
+}
+
+/* =========================
+   CHART
+========================= */
+function renderChart(results) {
+    const ctx = document.getElementById("chart");
+
+    if (chartInstance) chartInstance.destroy();
+
+    chartInstance = new Chart(ctx, {
+        type: "pie",
+        data: {
+            labels: ["POUR", "POUR (conditions)", "CONTRE", "NEUTRE"],
+            datasets: [{
+                data: [
+                    results.pour,
+                    results.conditional,
+                    results.contre,
+                    results.neutre
+                ]
+            }]
         }
+    });
+}
 
-        // === Classification ===
-        function classify(text, pour, contre) {
-            const scorePour = scoreText(text, pour);
-            const scoreContre = scoreText(text, contre);
-            if (scorePour > scoreContre) return "pour";
-            if (scoreContre > scorePour) return "contre";
-            return "neutre";
-        }
-
-        // === Analyse ===
-        async function analyze() {
-            saveKeywords(); // sauvegarde avant analyse
-            const file = document.getElementById("pdfInput").files[0];
-            if (!file) return alert("Veuillez sélectionner un PDF");
-
-            const pour = document.getElementById("pourKeywords").value.split("\n").map(s => normalizeText(s)).filter(Boolean);
-            const contre = document.getElementById("contreKeywords").value.split("\n").map(s => normalizeText(s)).filter(Boolean);
-
-            const text = await extractTextFromPDF(file);
-
-            const opinions = text.split(/[.!?]\s+/);
-            let results = { pour: 0, contre: 0, neutre: 0 };
-
-            opinions.forEach(op => {
-                if (op.trim().length > 40) {
-                    const cat = classify(op, pour, contre);
-                    results[cat]++;
-                }
-            });
-
-            const total = results.pour + results.contre + results.neutre;
-            if (total === 0) return alert("Aucune opinion détectée");
-
-            document.getElementById("pourResult").innerText = ((results.pour / total) * 100).toFixed(1) + " %";
-            document.getElementById("contreResult").innerText = ((results.contre / total) * 100).toFixed(1) + " %";
-            document.getElementById("neutralResult").innerText = ((results.neutre / total) * 100).toFixed(1) + " %";
-        }
-    </script>
+/* =========================
+   RESET
+========================= */
+function resetKeywords() {
+    localStorage.removeItem("keywords");
+    location.reload();
+}
+</script>
 
 </body>
 </html>
-

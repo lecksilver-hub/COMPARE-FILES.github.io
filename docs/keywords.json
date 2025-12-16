@@ -3,30 +3,43 @@
     "je suis pour",
     "pour",
     "favorable",
+    "très favorable",
     "bonne idée",
-    "excellente",
-    "très bonne",
+    "excellente idée",
+    "bonne chose",
+    "nécessaire",
+    "souhaitable",
     "oui",
     "d'accord",
     "totalement pour",
     "100% pour",
-    "nécessaire",
-    "souhaitable",
-    "bonne chose",
-    "très favorable"
+    "excellente initiative",
+    "je suis favorable"
+  ],
+  "cond": [
+    "à condition",
+    "sous condition",
+    "si",
+    "mais",
+    "à la condition",
+    "encadré",
+    "réglementé",
+    "contrôlé",
+    "surveillance",
+    "sans proxénète"
   ],
   "contre": [
     "contre",
-    "mauvaise idée",
+    "pas d'accord",
     "jamais",
+    "mauvaise idée",
     "honte",
+    "folie",
+    "erreur",
     "esclavage",
-    "lamentable",
     "inadmissible",
     "régression",
-    "pas d'accord",
-    "folie",
-    "erreur"
+    "lamentable",
+    "retour en arrière"
   ]
 }
-

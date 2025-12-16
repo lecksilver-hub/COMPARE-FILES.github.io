@@ -127,8 +127,8 @@ let keywords = {
 ========================= */
 async function loadKeywords() {
     try {
-        const res = await fetch("keyword.json", { cache: "no-store" });
-        if (!res.ok) throw new Error("keyword.json introuvable");
+        const res = await fetch("keywords.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("keywords.json introuvable");
         const json = await res.json();
 
         if (!Array.isArray(json.pour)) json.pour = [];
@@ -274,3 +274,4 @@ loadKeywords();
 
 </body>
 </html>
+
